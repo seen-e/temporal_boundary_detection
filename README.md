@@ -1,0 +1,2 @@
+# temporal_boundary_detection
+基于轨迹参数进行时间切分，用于长视频视频切分标注
