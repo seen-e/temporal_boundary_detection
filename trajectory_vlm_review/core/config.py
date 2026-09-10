@@ -33,6 +33,7 @@ class PathConfig:
 class ReviewConfig:
     enabled: bool = True
     review_mode: str = "single_pass"
+    stages: List[str] = field(default_factory=list)
     left_context_events: int = 2
     target_events_per_slice: int = 6
     right_context_events: int = 2

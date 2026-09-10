@@ -14,6 +14,12 @@ pipeline:
   visualization:
     max_episodes: 5
 
+vlm:
+  stages:
+    - pass1
+    - pass2
+    - pass3
+
 run:
   dry_run: false
   arms:
@@ -234,4 +240,3 @@ post_base_filter:
   adjacent_extrema_sec: 0.30
   adjacent_base_overlap_sec: 0.0
   max_iterations: 3
-

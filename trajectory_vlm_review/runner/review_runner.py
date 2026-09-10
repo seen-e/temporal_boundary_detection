@@ -84,15 +84,17 @@ class ReviewRunner:
         pass1_params = _stage_slice_params(self.cfg, "pass1")
         pass2_params = _stage_slice_params(self.cfg, "pass2")
         pass3_params = _stage_slice_params(self.cfg, "pass3")
-        _validate_stage_target_alignment(pass1_params, pass2_params, pass3_params)
+        vlm_stages = _vlm_stages(self.cfg)
+        _validate_stage_target_alignment(pass1_params, pass2_params, pass3_params, vlm_stages)
+        slice_params = pass2_params if "pass2" in vlm_stages else pass1_params
         slices = build_review_slices(
             episode_id=episode_id,
             episode_index=episode_index,
             arm=arm,
             events=events,
-            left_context_events=pass2_params[0],
-            target_events_per_slice=pass2_params[1],
-            right_context_events=pass2_params[2],
+            left_context_events=slice_params[0],
+            target_events_per_slice=slice_params[1],
+            right_context_events=slice_params[2],
         )
         if self.cfg.run.limit_slices is not None:
             slices = slices[: self.cfg.run.limit_slices]
@@ -135,8 +137,7 @@ class ReviewRunner:
                 getattr(self.cfg.vlm_trajectory_review, "enable_significant_extrema_protection", False)
             ),
         )
-        mode = str(getattr(self.cfg.vlm_trajectory_review, "review_mode", "single_pass") or "single_pass")
-        if mode == "two_pass" and bool(getattr(self.cfg.vlm_trajectory_review, "enable_pass3", False)):
+        if "pass3" in vlm_stages:
             pass3_slices = [_slice_with_context(slice_, pass3_params[0], pass3_params[2]) for slice_ in slices]
             refinement = run_pass3_completion(
                 self.cfg,
@@ -168,6 +169,7 @@ class ReviewRunner:
             "arm": arm,
             "status": "completed",
             "source": "vlm_trajectory_review",
+            "vlm_stages": vlm_stages,
             "original_event_ids": [event.event_id for event in events],
             **refinement,
             "stats": stats,
@@ -357,12 +359,54 @@ def _stage_slice_params(cfg: AppConfig, stage: str) -> Tuple[int, int, int]:
     )
 
 
-def _validate_stage_target_alignment(pass1_params: Tuple[int, int, int], pass2_params: Tuple[int, int, int], pass3_params: Tuple[int, int, int]) -> None:
-    targets = {"pass1": pass1_params[1], "pass2": pass2_params[1], "pass3": pass3_params[1]}
+def _vlm_stages(cfg: AppConfig) -> List[str]:
+    configured = list(getattr(cfg.vlm_trajectory_review, "stages", []) or [])
+    if configured:
+        return _normalize_vlm_stages(configured)
+    mode = str(getattr(cfg.vlm_trajectory_review, "review_mode", "single_pass") or "single_pass")
+    if mode == "two_pass":
+        stages = ["pass1", "pass2"]
+        if bool(getattr(cfg.vlm_trajectory_review, "enable_pass3", False)):
+            stages.append("pass3")
+        return stages
+    return ["single_pass"]
+
+
+def _normalize_vlm_stages(stages: List[str]) -> List[str]:
+    aliases = {
+        "1": "pass1",
+        "2": "pass2",
+        "3": "pass3",
+        "stage1": "pass1",
+        "stage2": "pass2",
+        "stage3": "pass3",
+    }
+    normalized = []
+    for item in stages:
+        value = aliases.get(str(item).strip().lower(), str(item).strip().lower())
+        if value not in {"pass1", "pass2", "pass3"}:
+            raise ValueError(f"unsupported vlm stage {item!r}; use pass1/pass2/pass3")
+        if value not in normalized:
+            normalized.append(value)
+    valid_prefixes = [["pass1"], ["pass1", "pass2"], ["pass1", "pass2", "pass3"]]
+    if normalized not in valid_prefixes:
+        raise ValueError(f"vlm stages must be a prefix flow: {valid_prefixes}; got {normalized}")
+    return normalized
+
+
+def _validate_stage_target_alignment(
+    pass1_params: Tuple[int, int, int],
+    pass2_params: Tuple[int, int, int],
+    pass3_params: Tuple[int, int, int],
+    vlm_stages: List[str] | None = None,
+) -> None:
+    vlm_stages = vlm_stages or ["pass1", "pass2", "pass3"]
+    all_targets = {"pass1": pass1_params[1], "pass2": pass2_params[1], "pass3": pass3_params[1]}
+    targets = {stage: all_targets[stage] for stage in vlm_stages if stage in all_targets}
     if len(set(targets.values())) == 1:
         return
     raise ValueError(
-        "pass1/pass2/pass3 target_events_per_slice must match because target is the owner write-back partition; "
+        "Active pass1/pass2/pass3 target_events_per_slice must match because target is the owner write-back partition; "
         f"got {targets}. You can tune pass*_left_context_events and pass*_right_context_events independently."
     )
 
@@ -400,6 +444,11 @@ def _slice_with_context(review_slice: ReviewSlice, left_context_events: int, rig
 
 
 def _run_slice_task(cfg: AppConfig, review_slice, time, raw, smooth) -> Dict[str, Any]:
+    vlm_stages = _vlm_stages(cfg)
+    if vlm_stages == ["pass1"]:
+        return _run_pass1_only_slice_task(cfg, review_slice, time, raw, smooth)
+    if vlm_stages in (["pass1", "pass2"], ["pass1", "pass2", "pass3"]):
+        return _run_two_pass_slice_task(cfg, review_slice, time, raw, smooth)
     mode = str(getattr(cfg.vlm_trajectory_review, "review_mode", "single_pass") or "single_pass")
     if mode == "two_pass":
         return _run_two_pass_slice_task(cfg, review_slice, time, raw, smooth)
@@ -426,10 +475,65 @@ def _run_slice_task(cfg: AppConfig, review_slice, time, raw, smooth) -> Dict[str
     return result
 
 
+def _run_pass1_only_slice_task(cfg: AppConfig, review_slice, time, raw, smooth) -> Dict[str, Any]:
+    pass1_params = _stage_slice_params(cfg, "pass1")
+    pass1_slice = _slice_with_context(review_slice, pass1_params[0], pass1_params[2])
+    pass1_rendered = render_slice(
+        pass1_slice,
+        time,
+        raw,
+        smooth,
+        cfg.paths.output_root,
+        cfg.visualization,
+        show_raw=cfg.vlm_trajectory_review.show_raw_trajectory,
+        show_smooth=cfg.vlm_trajectory_review.show_smoothed_trajectory,
+        show_time=False,
+        show_type=False,
+        show_id=False,
+        output_subdir=f"{review_slice.slice_id}/pass1",
+        local_filename="local.png",
+        global_filename="global.png",
+        show_candidates=False,
+        show_global_points=False,
+        render_global=True,
+        pass1_ticks=True,
+    )
+    _, pass1_review = _call_pass1(cfg, pass1_rendered)
+    pass1_review = _ensure_pass1_segments(pass1_review, pass1_slice)
+    _write_pass1_segment_visualizations(cfg, pass1_slice, time, smooth, pass1_review)
+    review = _keep_target_events_review(review_slice, "Pass 1 only mode keeps target keyframes because Pass 2 event filtering is disabled.")
+    review = _fill_missing_interval_reviews(review, review_slice)
+    validation = validate_review(review, review_slice)
+    result = {
+        "status": "completed" if validation.ok else "invalid",
+        "review_mode": "pass1_only",
+        "vlm_stages": ["pass1"],
+        "episode_id": review_slice.episode_id,
+        "arm": review_slice.arm,
+        "slice_id": review_slice.slice_id,
+        "image_path": pass1_rendered.image_path,
+        "metadata_path": pass1_rendered.metadata_path,
+        "pass1": {
+            "global_image_path": pass1_rendered.global_image_path,
+            "local_image_path": pass1_rendered.image_path,
+            "metadata_path": pass1_rendered.metadata_path,
+            "review": pass1_review,
+        },
+        "review": review,
+        "validation": {
+            "ok": validation.ok,
+            "issues": [issue.__dict__ for issue in validation.issues],
+        },
+    }
+    base = Path(cfg.paths.output_root) / review_slice.episode_id / review_slice.arm
+    write_json(base / f"{review_slice.slice_id}.review.json", result)
+    return result
+
+
 def _run_two_pass_slice_task(cfg: AppConfig, review_slice, time, raw, smooth) -> Dict[str, Any]:
     pass1_params = _stage_slice_params(cfg, "pass1")
     pass2_params = _stage_slice_params(cfg, "pass2")
-    _validate_stage_target_alignment(pass1_params, pass2_params, _stage_slice_params(cfg, "pass3"))
+    _validate_stage_target_alignment(pass1_params, pass2_params, _stage_slice_params(cfg, "pass3"), _vlm_stages(cfg))
     pass1_slice = _slice_with_context(review_slice, pass1_params[0], pass1_params[2])
     pass1_rendered = render_slice(
         pass1_slice,
@@ -480,6 +584,7 @@ def _run_two_pass_slice_task(cfg: AppConfig, review_slice, time, raw, smooth) ->
     result = {
         "status": "completed" if validation.ok else "invalid",
         "review_mode": "two_pass",
+        "vlm_stages": _vlm_stages(cfg),
         "episode_id": review_slice.episode_id,
         "arm": review_slice.arm,
         "slice_id": review_slice.slice_id,
@@ -506,6 +611,27 @@ def _run_two_pass_slice_task(cfg: AppConfig, review_slice, time, raw, smooth) ->
     write_json(base / f"{review_slice.slice_id}.review.json", result)
     _write_two_pass_slice_result(cfg, pass2_slice, time, smooth, review, result)
     return result
+
+
+def _keep_target_events_review(review_slice, reason: str) -> Dict[str, Any]:
+    return {
+        "region_analysis": {
+            "summary": reason,
+        },
+        "event_reviews": [
+            {
+                "event_id": event.event_id,
+                "action": "KEEP",
+                "state_before": "UNCERTAIN",
+                "state_after": "UNCERTAIN",
+                "confidence": "HIGH",
+                "reason": reason,
+            }
+            for event in review_slice.targets
+        ],
+        "interval_reviews": [],
+        "manual_review": False,
+    }
 
 
 def _call_pass1(cfg: AppConfig, review_slice) -> tuple[Any, Dict[str, Any]]:

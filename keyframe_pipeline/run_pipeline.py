@@ -141,6 +141,9 @@ def run_vlm_stage(config: Dict[str, Any]) -> Dict[str, Any]:
     cfg = load_vlm_config(config["_config_path"])
     run_cfg = dict(config.get("run") or {})
     review_cfg = dict(config.get("vlm_trajectory_review") or {})
+    vlm_cfg = dict(config.get("vlm") or {})
+    if "stages" in vlm_cfg:
+        review_cfg["stages"] = vlm_cfg["stages"]
     cfg.paths.keyframe_root = config["paths"]["keyframe_root"]
     cfg.paths.output_root = config["paths"]["vlm_output_root"]
     cfg.paths.dataset_root = config.get("paths", {}).get("dataset_root") or load_index(config["paths"]["index_json"])["dataset_root"]
@@ -148,12 +151,17 @@ def run_vlm_stage(config: Dict[str, Any]) -> Dict[str, Any]:
     for name in ["dry_run", "arms", "workers", "episode_index", "episode_start", "episode_end", "limit_episodes", "limit_slices"]:
         if name in run_cfg:
             setattr(cfg.run, name, run_cfg[name])
-    for name in ["force", "resume", "review_mode", "enable_pass3"]:
+    for name in ["force", "resume", "review_mode", "enable_pass3", "stages"]:
         if name in review_cfg:
             setattr(cfg.vlm_trajectory_review, name, review_cfg[name])
     runner = ReviewRunner(cfg)
     summaries = runner.run()
-    summary = {"episodes": len(summaries), "elapsed_sec": round(time.time() - started, 3), "summaries": summaries[:20]}
+    summary = {
+        "episodes": len(summaries),
+        "elapsed_sec": round(time.time() - started, 3),
+        "vlm_stages": list(getattr(cfg.vlm_trajectory_review, "stages", []) or []),
+        "summaries": summaries[:20],
+    }
     write_json(Path(config["paths"]["output_root"]) / "vlm_summary.json", summary, pretty=True)
     return summary
 
@@ -240,6 +248,8 @@ def apply_cli_overrides(config: Dict[str, Any], args: argparse.Namespace) -> Non
         paths["vlm_output_root"] = str(Path(args.output_root) / "vlm_review")
     if args.stage:
         pipeline["stages"] = args.stage
+    if args.vlm_stage:
+        config.setdefault("vlm", {})["stages"] = args.vlm_stage
     if args.episode_index is not None:
         run["episode_index"] = args.episode_index
     if args.episode_start is not None:
@@ -248,6 +258,8 @@ def apply_cli_overrides(config: Dict[str, Any], args: argparse.Namespace) -> Non
         run["episode_end"] = args.episode_end
     if args.limit_episodes is not None:
         run["limit_episodes"] = args.limit_episodes
+    if args.limit_slices is not None:
+        run["limit_slices"] = args.limit_slices
     if args.workers is not None:
         run["workers"] = args.workers
     if args.dry_run:
@@ -263,10 +275,12 @@ def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
     parser.add_argument("--index-json")
     parser.add_argument("--output-root")
     parser.add_argument("--stage", nargs="+", choices=["traditional", "vlm", "visualize", "all"])
+    parser.add_argument("--vlm-stage", nargs="+", choices=["pass1", "pass2", "pass3", "stage1", "stage2", "stage3"])
     parser.add_argument("--episode-index", type=int)
     parser.add_argument("--episode-start", type=int)
     parser.add_argument("--episode-end", type=int)
     parser.add_argument("--limit-episodes", type=int)
+    parser.add_argument("--limit-slices", type=int)
     parser.add_argument("--workers", type=int)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--force", action="store_true")
