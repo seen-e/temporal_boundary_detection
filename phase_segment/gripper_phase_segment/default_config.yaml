@@ -1,0 +1,151 @@
+gripper_phase_segmentation:
+  enabled: true
+
+  signal:
+    type: auto
+    direction: auto
+    max_interpolation_gap_sec: 0.2
+
+  outlier:
+    enabled: true
+    method: hampel
+    window_sec: 0.15
+    n_sigma: 3.0
+
+  smoothing:
+    method: savgol
+    window_sec: 0.10
+    polyorder: 2
+
+  velocity_smoothing:
+    enabled: true
+    method: savgol
+    window_sec: 0.10
+    polyorder: 2
+
+  extrema:
+    enabled: true
+    prominence_mode: auto
+    prominence: null
+    auto_prominence_ratio: 0.03
+    min_distance_sec: 0.05
+    min_absolute_amplitude: null
+
+  trend:
+    amplitude_mode: auto
+    amplitude_threshold: null
+    amplitude_threshold_ratio: 0.015
+    flat_min_duration_sec: 0.12
+    short_duration_sec: 0.20
+    small_amplitude_mode: auto
+    small_amplitude_ratio: 0.02
+
+  plateau:
+    enabled: true
+    window_sec: 0.25
+    range_mode: auto
+    range_threshold: null
+    range_ratio: 0.03
+    normalized_slope_threshold: 0.03
+    velocity_check_enabled: false
+    normalized_velocity_threshold: 0.03
+    min_duration_sec: 0.50
+    max_internal_gap_sec: 0.15
+    merge_value_ratio: 0.03
+    suppress_same_direction_internal_plateaus: true
+
+  motion:
+    small_motion_ratio: 0.02
+
+  anomaly:
+    detect_extrema: true
+    detect_short_reversal: true
+
+  motion_state:
+    threshold_mode: auto
+    velocity_enter_threshold: null
+    velocity_exit_threshold: null
+    auto_percentile: 75
+    auto_mad_k: 3.0
+    exit_ratio: 0.5
+    min_enter_threshold: 0.000001
+
+  temporal:
+    min_state_duration_sec: 0.10
+
+  boundary:
+    merge_window_sec: 0.15
+
+  dual_gripper:
+    enabled: true
+    fusion:
+      merge_window_sec: 0.15
+      time_strategy: weighted_mean
+      confidence_strategy: max
+      one_to_one_matching: true
+
+  segment:
+    min_motion_event_duration_sec: 0.08
+    min_segment_duration_sec: 0.20
+    strong_motion_threshold_ratio: 1.25
+
+  visualization:
+    enabled: true
+    save_png: true
+
+keyframe_filter:
+  enabled: true
+  max_iterations: 4
+  local_window_sec: 0.35
+  min_segment_duration_sec: 0.25
+  tiny_segment_duration_sec: 0.15
+  event_cluster_sec: 0.25
+  min_plateau_duration_sec: 0.35
+  plateau_merge_gap_sec: 0.25
+  tiny_amplitude_abs: 0.01
+  tiny_amplitude_ratio: 0.015
+  small_amplitude_abs: 0.04
+  small_amplitude_ratio: 0.03
+  min_extrema_prominence_abs: null
+  min_extrema_prominence_ratio: 0.02
+  local_noise_k: 3.0
+  plateau_merge_value_abs: 0.02
+  plateau_merge_value_ratio: 0.025
+  plateau_max_displacement_abs: null
+  plateau_max_displacement_ratio: 0.06
+  plateau_max_mad_abs: null
+  plateau_max_mad_ratio: 0.04
+  same_trend_slope_ratio: 0.035
+  uncertain_confidence: 0.55
+  weak_confidence: 0.70
+  enable_tiny_extrema: true
+  enable_short_reversal: true
+  enable_short_plateau: true
+  enable_false_plateau: true
+  enable_plateau_merge: true
+  enable_event_cluster: true
+  enable_short_segment: true
+  enable_same_trend_boundary: true
+
+
+extrema_base_detection:
+  enabled: true
+  method: monotonic_walk
+  flat_tolerance_abs: null
+  flat_tolerance_ratio: 0.0
+  min_extrema_prominence_abs: null
+  min_extrema_prominence_ratio: 0.02
+  max_base_duration_sec: 12.0
+  max_base_width_ratio: 0.65
+  guard_neighbor_extrema: true
+  include_walk_profile: true
+  include_width_curve: false
+
+
+post_base_filter:
+  enabled: true
+  remove_failed_bases: true
+  enable_adjacent_extrema_filter: true
+  adjacent_extrema_sec: 0.30
+  adjacent_base_overlap_sec: 0.0
+  max_iterations: 3

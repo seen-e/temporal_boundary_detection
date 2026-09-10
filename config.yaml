@@ -1,0 +1,237 @@
+paths:
+  index_json: /mnt/data/chachaxu/save/abc_130k_v3/gripper_trajectory_index.json
+  dataset_root: /mnt/data/yuluo/data/abc_130k_v3_train
+  phase_module_root: /mnt/workspace/temporal_boundary_detection
+  output_root: /mnt/workspace/temporal_boundary_detection/outputs/abc_130k_v3_pipeline
+  keyframe_root: /mnt/workspace/temporal_boundary_detection/outputs/abc_130k_v3_pipeline/traditional_keyframes
+  vlm_output_root: /mnt/workspace/temporal_boundary_detection/outputs/abc_130k_v3_pipeline/vlm_review
+
+pipeline:
+  stages:
+    - traditional
+    - vlm
+    - visualize
+  visualization:
+    max_episodes: 5
+
+run:
+  dry_run: false
+  arms:
+    - left
+    - right
+  workers: 32
+  episode_index: null
+  episode_start: null
+  episode_end: null
+  limit_episodes: null
+  limit_slices: null
+
+traditional:
+  overwrite: false
+  output_chunk_size: 1000
+  pretty: false
+  limit_files: null
+
+model:
+  base_url: http://1993781598432617.vpc.cn-wulanchabu.pai-eas.aliyuncs.com/api/predict/quickstart_deploy_20260909_vq9r/v1
+  api_key: Y2IxMzA3N2ZkOTk1M2ZlMTk5OWYwZjdhZDg0NmYxNzc2YWQyMDJiYQ==
+  model: Qwen3.8-27B-FP8
+  max_tokens: 16384
+  temperature: 0.0
+  top_p: 0.95
+  top_k: 0
+  extra_body:
+    chat_template_kwargs:
+      enable_thinking: false
+  timeout: 1200
+  max_retries: 2
+
+vlm_trajectory_review:
+  enabled: true
+  review_mode: two_pass
+  review_left_gripper: true
+  review_right_gripper: true
+  left_context_events: 12
+  target_events_per_slice: 16
+  right_context_events: 12
+  pass1_left_context_events: 12
+  pass1_target_events_per_slice: 16
+  pass1_right_context_events: 12
+  pass2_left_context_events: 12
+  pass2_target_events_per_slice: 16
+  pass2_right_context_events: 12
+  pass3_left_context_events: 12
+  pass3_target_events_per_slice: 16
+  pass3_right_context_events: 12
+  show_raw_trajectory: false
+  show_smoothed_trajectory: true
+  show_event_time: true
+  show_event_type: true
+  show_event_id: true
+  enable_add: true
+  enable_merge: true
+  enable_relocalize: true
+  enable_significant_extrema_protection: false
+  save_visualization: true
+  save_request: true
+  save_response: true
+  resume: true
+  force: false
+  max_retries: 3
+  enable_pass3: true
+  pass3_mode: frozen_boundary
+  pass3_max_iterations: 1
+  pass3_max_added_points_per_gap: 4
+  pass3_max_added_points_per_slice: 8
+  pass3_min_gap_duration_sec: 0.3
+  pass3_context_sec: 1.5
+  pass3_refine_window_sec: 0.8
+
+visualization:
+  dpi: 170
+  width: 14.0
+  height: 5.5
+  padding_sec: 1.0
+  min_window_sec: 4.0
+  dense_ticks: true
+  pass1_global_major_xticks: 10
+  pass1_global_minor_xticks: 30
+  pass1_local_major_xticks: 10
+  pass1_local_minor_xticks: 24
+
+gripper_phase_segmentation:
+  enabled: true
+  signal:
+    type: auto
+    direction: auto
+    max_interpolation_gap_sec: 0.2
+  outlier:
+    enabled: true
+    method: hampel
+    window_sec: 0.15
+    n_sigma: 3.0
+  smoothing:
+    method: savgol
+    window_sec: 0.30
+    polyorder: 2
+  velocity_smoothing:
+    enabled: true
+    method: savgol
+    window_sec: 0.30
+    polyorder: 2
+  extrema:
+    enabled: true
+    prominence_mode: auto
+    prominence: null
+    auto_prominence_ratio: 0.03
+    min_distance_sec: 0.05
+    min_absolute_amplitude: null
+  trend:
+    amplitude_mode: auto
+    amplitude_threshold: null
+    amplitude_threshold_ratio: 0.015
+    flat_min_duration_sec: 0.12
+    short_duration_sec: 0.20
+    small_amplitude_mode: auto
+    small_amplitude_ratio: 0.02
+  plateau:
+    enabled: true
+    window_sec: 0.25
+    range_mode: auto
+    range_threshold: null
+    range_ratio: 0.03
+    normalized_slope_threshold: 0.03
+    velocity_check_enabled: false
+    normalized_velocity_threshold: 0.03
+    min_duration_sec: 0.50
+    max_internal_gap_sec: 0.15
+    merge_value_ratio: 0.03
+    suppress_same_direction_internal_plateaus: true
+  motion:
+    small_motion_ratio: 0.02
+  anomaly:
+    detect_extrema: true
+    detect_short_reversal: true
+  motion_state:
+    threshold_mode: auto
+    velocity_enter_threshold: null
+    velocity_exit_threshold: null
+    auto_percentile: 75
+    auto_mad_k: 3.0
+    exit_ratio: 0.5
+    min_enter_threshold: 0.000001
+  temporal:
+    min_state_duration_sec: 0.10
+  boundary:
+    merge_window_sec: 0.15
+  dual_gripper:
+    enabled: true
+    fusion:
+      merge_window_sec: 0.15
+      time_strategy: weighted_mean
+      confidence_strategy: max
+      one_to_one_matching: true
+  segment:
+    min_motion_event_duration_sec: 0.08
+    min_segment_duration_sec: 0.20
+    strong_motion_threshold_ratio: 1.25
+  visualization:
+    enabled: true
+    save_png: true
+
+keyframe_filter:
+  enabled: true
+  max_iterations: 4
+  local_window_sec: 0.35
+  min_segment_duration_sec: 0.25
+  tiny_segment_duration_sec: 0.15
+  event_cluster_sec: 0.25
+  min_plateau_duration_sec: 0.35
+  plateau_merge_gap_sec: 0.25
+  tiny_amplitude_abs: 0.01
+  tiny_amplitude_ratio: 0.015
+  small_amplitude_abs: 0.04
+  small_amplitude_ratio: 0.03
+  min_extrema_prominence_abs: null
+  min_extrema_prominence_ratio: 0.02
+  local_noise_k: 3.0
+  plateau_merge_value_abs: 0.02
+  plateau_merge_value_ratio: 0.025
+  plateau_max_displacement_abs: null
+  plateau_max_displacement_ratio: 0.06
+  plateau_max_mad_abs: null
+  plateau_max_mad_ratio: 0.04
+  same_trend_slope_ratio: 0.035
+  uncertain_confidence: 0.55
+  weak_confidence: 0.70
+  enable_tiny_extrema: true
+  enable_short_reversal: true
+  enable_short_plateau: true
+  enable_false_plateau: true
+  enable_plateau_merge: true
+  enable_event_cluster: true
+  enable_short_segment: true
+  enable_same_trend_boundary: true
+
+extrema_base_detection:
+  enabled: true
+  method: monotonic_walk
+  flat_tolerance_abs: null
+  flat_tolerance_ratio: 0.0
+  min_extrema_prominence_abs: null
+  min_extrema_prominence_ratio: 0.02
+  min_base_width_samples: 1
+  max_base_duration_sec: 12.0
+  max_base_width_ratio: 0.65
+  guard_neighbor_extrema: true
+  include_walk_profile: true
+  include_width_curve: false
+
+post_base_filter:
+  enabled: true
+  remove_failed_bases: true
+  enable_adjacent_extrema_filter: true
+  adjacent_extrema_sec: 0.30
+  adjacent_base_overlap_sec: 0.0
+  max_iterations: 3
+
