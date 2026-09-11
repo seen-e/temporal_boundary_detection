@@ -260,6 +260,10 @@ def apply_cli_overrides(config: Dict[str, Any], args: argparse.Namespace) -> Non
         run["limit_episodes"] = args.limit_episodes
     if args.limit_slices is not None:
         run["limit_slices"] = args.limit_slices
+    if args.min_duration_sec is not None:
+        run["min_duration_sec"] = args.min_duration_sec
+    if args.max_duration_sec is not None:
+        run["max_duration_sec"] = args.max_duration_sec
     if args.workers is not None:
         run["workers"] = args.workers
     if args.dry_run:
@@ -281,6 +285,8 @@ def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
     parser.add_argument("--episode-end", type=int)
     parser.add_argument("--limit-episodes", type=int)
     parser.add_argument("--limit-slices", type=int)
+    parser.add_argument("--min-duration-sec", type=float)
+    parser.add_argument("--max-duration-sec", type=float)
     parser.add_argument("--workers", type=int)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--force", action="store_true")

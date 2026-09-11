@@ -500,7 +500,8 @@ def _run_pass1_only_slice_task(cfg: AppConfig, review_slice, time, raw, smooth) 
     )
     _, pass1_review = _call_pass1(cfg, pass1_rendered)
     pass1_review = _ensure_pass1_segments(pass1_review, pass1_slice)
-    _write_pass1_segment_visualizations(cfg, pass1_slice, time, smooth, pass1_review)
+    if cfg.vlm_trajectory_review.save_visualization:
+        _write_pass1_segment_visualizations(cfg, pass1_slice, time, smooth, pass1_review)
     review = _keep_target_events_review(review_slice, "Pass 1 only mode keeps target keyframes because Pass 2 event filtering is disabled.")
     review = _fill_missing_interval_reviews(review, review_slice)
     validation = validate_review(review, review_slice)
@@ -527,6 +528,7 @@ def _run_pass1_only_slice_task(cfg: AppConfig, review_slice, time, raw, smooth) 
     }
     base = Path(cfg.paths.output_root) / review_slice.episode_id / review_slice.arm
     write_json(base / f"{review_slice.slice_id}.review.json", result)
+    _cleanup_rendered_pngs(cfg, pass1_rendered)
     return result
 
 
@@ -557,7 +559,8 @@ def _run_two_pass_slice_task(cfg: AppConfig, review_slice, time, raw, smooth) ->
     )
     pass1_raw, pass1_review = _call_pass1(cfg, pass1_rendered)
     pass1_review = _ensure_pass1_segments(pass1_review, pass1_slice)
-    _write_pass1_segment_visualizations(cfg, pass1_slice, time, smooth, pass1_review)
+    if cfg.vlm_trajectory_review.save_visualization:
+        _write_pass1_segment_visualizations(cfg, pass1_slice, time, smooth, pass1_review)
 
     pass2_slice = _slice_with_context(review_slice, pass2_params[0], pass2_params[2])
     pass2_rendered = render_slice(
@@ -610,6 +613,7 @@ def _run_two_pass_slice_task(cfg: AppConfig, review_slice, time, raw, smooth) ->
     base = Path(cfg.paths.output_root) / review_slice.episode_id / review_slice.arm
     write_json(base / f"{review_slice.slice_id}.review.json", result)
     _write_two_pass_slice_result(cfg, pass2_slice, time, smooth, review, result)
+    _cleanup_rendered_pngs(cfg, pass1_rendered, pass2_rendered)
     return result
 
 
@@ -728,6 +732,20 @@ def _stage_path(cfg: AppConfig, review_slice, stage: str) -> Path:
     path = Path(cfg.paths.output_root) / review_slice.episode_id / review_slice.arm / review_slice.slice_id / stage
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def _cleanup_rendered_pngs(cfg: AppConfig, *rendered_slices) -> None:
+    if cfg.vlm_trajectory_review.save_visualization:
+        return
+    for rendered in rendered_slices:
+        for attr in ("image_path", "global_image_path"):
+            value = getattr(rendered, attr, None)
+            if not value:
+                continue
+            try:
+                Path(value).unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def _write_pass1_segment_visualizations(cfg: AppConfig, review_slice, time, smooth, pass1_review: Dict[str, Any]) -> None:
@@ -878,7 +896,8 @@ def _write_two_pass_slice_result(cfg: AppConfig, review_slice, time, smooth, rev
         "warnings": review.get("warnings", []),
     }
     write_json(result_dir / "cleaned_events.json", cleaned)
-    _plot_slice_before_after(result_dir / "before_after.png", review_slice, time, smooth, review)
+    if cfg.vlm_trajectory_review.save_visualization:
+        _plot_slice_before_after(result_dir / "before_after.png", review_slice, time, smooth, review)
 
 
 def _plot_slice_before_after(out_path: Path, review_slice, time, smooth, review: Dict[str, Any]) -> None:

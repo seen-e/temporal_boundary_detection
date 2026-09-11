@@ -42,9 +42,32 @@ def select_episode_ids(index: Dict[str, Any], run_cfg: Dict[str, Any]) -> List[i
         ids = [i for i in ids if i >= int(run_cfg["episode_start"])]
     if run_cfg.get("episode_end") is not None:
         ids = [i for i in ids if i < int(run_cfg["episode_end"])]
+    if run_cfg.get("min_duration_sec") is not None:
+        threshold = float(run_cfg["min_duration_sec"])
+        ids = [i for i in ids if _episode_duration_sec(index["episodes"][str(i)]) is not None and _episode_duration_sec(index["episodes"][str(i)]) >= threshold]
+    if run_cfg.get("max_duration_sec") is not None:
+        threshold = float(run_cfg["max_duration_sec"])
+        ids = [i for i in ids if _episode_duration_sec(index["episodes"][str(i)]) is not None and _episode_duration_sec(index["episodes"][str(i)]) <= threshold]
     if run_cfg.get("limit_episodes") is not None:
         ids = ids[: int(run_cfg["limit_episodes"])]
     return ids
+
+
+def _episode_duration_sec(episode: Dict[str, Any]) -> Optional[float]:
+    value = episode.get("duration_sec")
+    if value is not None:
+        return float(value)
+    fps = episode.get("fps")
+    frame_count = episode.get("frame_count")
+    if fps:
+        return float(frame_count or 0) / float(fps)
+    for side in ("left_gripper", "right_gripper"):
+        segment = episode.get(side) or {}
+        start = segment.get("row_start")
+        end = segment.get("row_end")
+        if start is not None and end is not None and fps:
+            return float(int(end) - int(start)) / float(fps)
+    return None
 
 
 def group_index_episodes_by_data_file(index: Dict[str, Any], episode_ids: Iterable[int]) -> List[Dict[str, Any]]:

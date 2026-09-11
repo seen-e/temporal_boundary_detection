@@ -29,6 +29,8 @@ run:
   episode_index: null
   episode_start: null
   episode_end: null
+  min_duration_sec: null
+  max_duration_sec: null
   limit_episodes: null
   limit_slices: null
 

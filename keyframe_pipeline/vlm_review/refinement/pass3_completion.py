@@ -261,7 +261,14 @@ def _run_pass3_slice_task(
     added_events = refine_pass3_additions(review, metadata, time, smooth, max_added_per_slice=max_added_per_slice)
     write_json(slice_dir / "review.json", review)
     write_json(slice_dir / "refined_boundaries.json", {"slice_id": review_slice.slice_id, "added_events": added_events})
-    _render_pass3_result(slice_dir / "result.png", review_slice, task, time, smooth, added_events)
+    if cfg.vlm_trajectory_review.save_visualization:
+        _render_pass3_result(slice_dir / "result.png", review_slice, task, time, smooth, added_events)
+    else:
+        for path in (local_path, global_path):
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
     return {
         "slice_id": review_slice.slice_id,
         "status": "completed",
