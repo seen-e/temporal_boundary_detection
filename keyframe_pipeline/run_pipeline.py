@@ -20,7 +20,7 @@ from .index_io import (
     select_episode_ids,
     write_json,
 )
-from .traditional_extractor import build_traditional_configs, extract_episode_from_index
+from .traditional.extractor import build_traditional_configs, extract_episode_from_index
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -134,8 +134,8 @@ def process_file_task(task: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def run_vlm_stage(config: Dict[str, Any]) -> Dict[str, Any]:
-    from trajectory_vlm_review.core.config import load_config as load_vlm_config
-    from trajectory_vlm_review.runner.review_runner import ReviewRunner
+    from .vlm_review.core.config import load_config as load_vlm_config
+    from .vlm_review.runner.review_runner import ReviewRunner
 
     started = time.time()
     cfg = load_vlm_config(config["_config_path"])
@@ -167,7 +167,7 @@ def run_vlm_stage(config: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def run_visualization_stage(config: Dict[str, Any]) -> Dict[str, Any]:
-    from trajectory_vlm_review.visualization.three_stage_comparison import plot_episode_three_stage
+    from .vlm_review.visualization.three_stage_comparison import plot_episode_three_stage
 
     index = load_index(config["paths"]["index_json"])
     selected = select_episode_ids(index, dict(config.get("run") or {}))

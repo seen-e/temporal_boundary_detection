@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from phase_segment.gripper_phase_segment.config import GripperPhaseSegmentationConfig
-from phase_segment.gripper_phase_segment.segmenter import segment_gripper_trajectory
+from keyframe_pipeline.traditional.phase_segment.gripper_phase_segment.config import GripperPhaseSegmentationConfig
+from keyframe_pipeline.traditional.phase_segment.gripper_phase_segment.segmenter import segment_gripper_trajectory
 
 
 def cfg(**overrides):

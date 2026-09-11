@@ -23,31 +23,33 @@
 ```text
 /mnt/workspace/temporal_boundary_detection
 ├── config.yaml
+├── README.md
 ├── keyframe_pipeline
 │   ├── run_pipeline.py
 │   ├── index_io.py
-│   ├── traditional_extractor.py
-│   └── traditional
-│       ├── gripper_keypoint_filter.py
-│       ├── extrema_base_detector.py
-│       └── post_base_filter.py
-├── phase_segment
-│   └── gripper_phase_segment
-│       ├── segmenter.py
-│       ├── preprocess.py
-│       ├── trend.py
-│       ├── plateau.py
-│       ├── velocity.py
-│       ├── dual.py
-│       └── config.py
-└── trajectory_vlm_review
-    ├── runner
-    ├── slicing
-    ├── prompts
-    ├── vlm
-    ├── refinement
-    ├── validation
-    └── visualization
+│   ├── traditional
+│   │   ├── extractor.py
+│   │   ├── filters
+│   │   │   ├── gripper_keypoint_filter.py
+│   │   │   ├── extrema_base_detector.py
+│   │   │   └── post_base_filter.py
+│   │   └── phase_segment
+│   │       └── gripper_phase_segment
+│   │           ├── segmenter.py
+│   │           ├── preprocess.py
+│   │           ├── trend.py
+│   │           ├── plateau.py
+│   │           ├── velocity.py
+│   │           ├── dual.py
+│   │           └── config.py
+│   └── vlm_review
+│       ├── runner
+│       ├── slicing
+│       ├── prompts
+│       ├── vlm
+│       ├── refinement
+│       ├── validation
+│       └── visualization
 ```
 
 各部分作用：
@@ -55,12 +57,10 @@
 - `config.yaml`：统一配置文件，所有路径、传统算法参数、VLM 参数、运行范围都在这里设置。
 - `keyframe_pipeline/run_pipeline.py`：融合入口，负责串起传统算法和 VLM 三阶段过滤。
 - `keyframe_pipeline/index_io.py`：读取 gripper trajectory index JSON，并根据索引读取 parquet 中对应 episode 的轨迹。
-- `keyframe_pipeline/traditional_extractor.py`：传统关键帧提取主逻辑。
-- `keyframe_pipeline/traditional/gripper_keypoint_filter.py`：传统候选点去噪过滤。
-- `keyframe_pipeline/traditional/extrema_base_detector.py`：极值点左右山脚检测。
-- `keyframe_pipeline/traditional/post_base_filter.py`：山脚检测后的二次传统过滤。
-- `phase_segment/gripper_phase_segment`：夹爪轨迹预处理、平滑、极值检测、平台期检测和双夹爪相位切分模块。
-- `trajectory_vlm_review`：三阶段 VLM 审核框架，包含切片、提示词、请求构造、结果解析、后处理和可视化。
+- `keyframe_pipeline/traditional/extractor.py`：传统关键帧提取主逻辑。
+- `keyframe_pipeline/traditional/filters`：传统候选点去噪、极值点左右山脚检测、山脚检测后二次传统过滤。
+- `keyframe_pipeline/traditional/phase_segment/gripper_phase_segment`：夹爪轨迹预处理、平滑、极值检测、平台期检测和双夹爪相位切分模块。
+- `keyframe_pipeline/vlm_review`：三阶段 VLM 审核框架，包含切片、提示词、请求构造、结果解析、后处理和可视化。
 
 ## 3. 输入数据
 
@@ -169,7 +169,7 @@ paths:
 
 - `index_json`：统一索引文件。
 - `dataset_root`：真实 LeRobot v3 数据集根目录。
-- `phase_module_root`：当前工程根目录，用于导入 `phase_segment`。
+- `phase_module_root`：当前工程根目录，用于导入 `keyframe_pipeline` 下的传统 phase segmentation 模块。
 - `output_root`：pipeline 总输出目录。
 - `keyframe_root`：传统算法关键帧 JSON 输出目录。
 - `vlm_output_root`：VLM 审核和可视化输出目录。
@@ -338,7 +338,7 @@ post_base_filter:
 入口：
 
 ```text
-keyframe_pipeline/traditional_extractor.py
+keyframe_pipeline/traditional/extractor.py
 ```
 
 处理单个 episode 时执行：
@@ -406,7 +406,7 @@ keyframe_pipeline/traditional_extractor.py
 入口：
 
 ```text
-trajectory_vlm_review/runner/review_runner.py
+keyframe_pipeline/vlm_review/runner/review_runner.py
 ```
 
 VLM 输入来自传统关键帧 JSON 中每个 arm 的 `cleaned_keyframes`。
@@ -780,44 +780,43 @@ python3 -m keyframe_pipeline.run_pipeline --config config.yaml
 - 传统关键帧提取：
 
 ```text
-keyframe_pipeline/traditional_extractor.py
+keyframe_pipeline/traditional/extractor.py
 ```
 
 - 夹爪轨迹相位切分：
 
 ```text
-phase_segment/gripper_phase_segment/segmenter.py
+keyframe_pipeline/traditional/phase_segment/gripper_phase_segment/segmenter.py
 ```
 
 - VLM 三阶段审核：
 
 ```text
-trajectory_vlm_review/runner/review_runner.py
+keyframe_pipeline/vlm_review/runner/review_runner.py
 ```
 
 - VLM 提示词：
 
 ```text
-trajectory_vlm_review/prompts/three_stage_prompts.py
-trajectory_vlm_review/prompts/three_stage_image_instructions.py
+keyframe_pipeline/vlm_review/prompts/three_stage_prompts.py
+keyframe_pipeline/vlm_review/prompts/three_stage_image_instructions.py
 ```
 
 - VLM 请求构造：
 
 ```text
-trajectory_vlm_review/vlm/request_builder.py
+keyframe_pipeline/vlm_review/vlm/request_builder.py
 ```
 
 - VLM 输出解析：
 
 ```text
-trajectory_vlm_review/vlm/parser.py
-trajectory_vlm_review/validation/validator.py
+keyframe_pipeline/vlm_review/vlm/parser.py
+keyframe_pipeline/vlm_review/validation/validator.py
 ```
 
 - 最终对比可视化：
 
 ```text
-trajectory_vlm_review/visualization/three_stage_comparison.py
+keyframe_pipeline/vlm_review/visualization/three_stage_comparison.py
 ```
-

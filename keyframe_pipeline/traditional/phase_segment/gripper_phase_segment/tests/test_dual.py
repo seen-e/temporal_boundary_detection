@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from phase_segment.gripper_phase_segment.config import GripperPhaseSegmentationConfig
-from phase_segment.gripper_phase_segment.dual import fuse_gripper_boundaries, segment_dual_gripper_trajectory
-from phase_segment.gripper_phase_segment.types import Boundary
+from keyframe_pipeline.traditional.phase_segment.gripper_phase_segment.config import GripperPhaseSegmentationConfig
+from keyframe_pipeline.traditional.phase_segment.gripper_phase_segment.dual import fuse_gripper_boundaries, segment_dual_gripper_trajectory
+from keyframe_pipeline.traditional.phase_segment.gripper_phase_segment.types import Boundary
 
 
 def cfg():
@@ -154,4 +154,3 @@ def test_single_side_short_motion_is_not_deleted_by_dual_fusion():
     assert len(result.right_result.boundaries) == 0
     assert len(result.global_boundaries) == len(result.left_result.boundaries)
     assert len(result.global_boundaries) == 2
-

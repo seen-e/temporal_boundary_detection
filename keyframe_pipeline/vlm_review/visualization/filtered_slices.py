@@ -11,15 +11,15 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from trajectory_vlm_review.core.config import ensure_config_defaults, load_config
-from trajectory_vlm_review.core.models import Event
-from trajectory_vlm_review.data.io_utils import (
+from keyframe_pipeline.vlm_review.core.config import ensure_config_defaults, load_config
+from keyframe_pipeline.vlm_review.core.models import Event
+from keyframe_pipeline.vlm_review.data.io_utils import (
     load_gripper_trajectory,
     normalize_events,
     read_json,
     write_json,
 )
-from trajectory_vlm_review.slicing import build_review_slices
+from keyframe_pipeline.vlm_review.slicing import build_review_slices
 
 
 EVENT_COLORS = {

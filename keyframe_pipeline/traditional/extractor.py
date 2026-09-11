@@ -7,13 +7,13 @@ from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
 
-from phase_segment.gripper_phase_segment.config import GripperPhaseSegmentationConfig
-from phase_segment.gripper_phase_segment.segmenter import segment_gripper_trajectory
+from .phase_segment.gripper_phase_segment.config import GripperPhaseSegmentationConfig
+from .phase_segment.gripper_phase_segment.segmenter import segment_gripper_trajectory
 
-from .index_io import extract_gripper_values, json_safe
-from .traditional.extrema_base_detector import ExtremaBaseConfig, annotate_extrema_bases
-from .traditional.gripper_keypoint_filter import KeypointFilterConfig, filter_keyframes
-from .traditional.post_base_filter import PostBaseFilterConfig, filter_after_extrema_bases
+from ..index_io import extract_gripper_values, json_safe
+from .filters.extrema_base_detector import ExtremaBaseConfig, annotate_extrema_bases
+from .filters.gripper_keypoint_filter import KeypointFilterConfig, filter_keyframes
+from .filters.post_base_filter import PostBaseFilterConfig, filter_after_extrema_bases
 
 
 def extract_episode_from_index(
@@ -180,4 +180,3 @@ def _nearest_frame_index(frame_indices: np.ndarray, frame: int) -> int:
     if len(frame_indices) == 0:
         return 0
     return int(np.argmin(np.abs(frame_indices.astype(int) - int(frame))))
-

@@ -198,8 +198,8 @@ def _load_from_parquet(
     if phase_module_root:
         sys.path.insert(0, phase_module_root)
     try:
-        from phase_segment.gripper_phase_segment.config import GripperPhaseSegmentationConfig
-        from phase_segment.gripper_phase_segment.segmenter import segment_gripper_trajectory
+        from keyframe_pipeline.traditional.phase_segment.gripper_phase_segment.config import GripperPhaseSegmentationConfig
+        from keyframe_pipeline.traditional.phase_segment.gripper_phase_segment.segmenter import segment_gripper_trajectory
     except Exception:
         segment_gripper_trajectory = None
         GripperPhaseSegmentationConfig = None

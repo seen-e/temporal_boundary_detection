@@ -6,7 +6,7 @@ This module segments a single gripper trajectory into low-level motion phases:
 Minimal Python API:
 
 ```python
-from phase_segment.gripper_phase_segment import segment_gripper_trajectory
+from keyframe_pipeline.traditional.phase_segment.gripper_phase_segment import segment_gripper_trajectory
 
 result = segment_gripper_trajectory(timestamps, gripper_values)
 print(result.boundaries)
@@ -16,7 +16,7 @@ print(result.segments)
 Dual-gripper API:
 
 ```python
-from phase_segment.gripper_phase_segment import segment_dual_gripper_trajectory
+from keyframe_pipeline.traditional.phase_segment.gripper_phase_segment import segment_dual_gripper_trajectory
 
 result = segment_dual_gripper_trajectory(
     timestamps=timestamps,
@@ -30,20 +30,20 @@ print(result.global_segments)
 CLI example for an exported ABC trajectory:
 
 ```bash
-python -m phase_segment.gripper_phase_segment.cli \
+python -m keyframe_pipeline.traditional.phase_segment.gripper_phase_segment.cli \
   --input /mnt/data/chachaxu/dataset/abc_40task/task_01_fold_and_stack_the_t_shirts/episode_01_abc_130k_v3_train__episode_000010/trajectory.parquet \
   --side left \
-  --output-dir /mnt/workspace/temporal_boundary_detection/phase_segment/gripper_phase_segment/examples/episode_000010_left \
+  --output-dir /mnt/workspace/temporal_boundary_detection/keyframe_pipeline/traditional/phase_segment/gripper_phase_segment/examples/episode_000010_left \
   --plot
 ```
 
 Dual-gripper CLI:
 
 ```bash
-python -m phase_segment.gripper_phase_segment.cli \
+python -m keyframe_pipeline.traditional.phase_segment.gripper_phase_segment.cli \
   --input /mnt/data/chachaxu/dataset/abc_40task/task_01_fold_and_stack_the_t_shirts/episode_01_abc_130k_v3_train__episode_000010/trajectory.parquet \
   --dual \
-  --output-dir /mnt/workspace/temporal_boundary_detection/phase_segment/gripper_phase_segment/examples/episode_000010_dual \
+  --output-dir /mnt/workspace/temporal_boundary_detection/keyframe_pipeline/traditional/phase_segment/gripper_phase_segment/examples/episode_000010_dual \
   --plot
 ```
 
@@ -71,7 +71,7 @@ within `dual_gripper.fusion.merge_window_sec`. Merged times use
 Batch processing for `abc_40task`:
 
 ```bash
-python -m phase_segment.gripper_phase_segment.batch_abc40 \
+python -m keyframe_pipeline.traditional.phase_segment.gripper_phase_segment.batch_abc40 \
   --dataset-root /mnt/data/chachaxu/dataset/abc_40task
 ```
 
