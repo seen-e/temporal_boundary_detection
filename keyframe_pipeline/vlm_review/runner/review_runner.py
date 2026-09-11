@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..core.config import AppConfig, ensure_config_defaults, load_config
-from ..core.models import ReviewSlice
+from ..core.models import ReviewSlice, display_id_from_event_id
 from ..data.io_utils import (
     episode_id_from_index,
     find_keyframe_json,
@@ -130,13 +130,14 @@ class ReviewRunner:
                     print(f"    {arm} {done}/{len(pending_slices)} {slice_id}: {result.get('status')}")
         slice_results = sorted(slice_results, key=lambda item: item.get("slice_id", ""))
 
-        refinement = apply_reviews(
+        pass2_refinement = apply_reviews(
             events,
             slice_results,
             protect_significant_extrema=bool(
                 getattr(self.cfg.vlm_trajectory_review, "enable_significant_extrema_protection", False)
             ),
         )
+        refinement = pass2_refinement
         if "pass3" in vlm_stages:
             pass3_slices = [_slice_with_context(slice_, pass3_params[0], pass3_params[2]) for slice_ in slices]
             refinement = run_pass3_completion(
@@ -175,6 +176,17 @@ class ReviewRunner:
             "stats": stats,
         }
         write_json(Path(self.cfg.paths.output_root) / episode_id / arm / "final_review.json", final)
+        _write_stage_point_results(
+            self.cfg,
+            episode_id=episode_id,
+            episode_index=episode_index,
+            arm=arm,
+            events=events,
+            slice_results=slice_results,
+            pass2_refinement=pass2_refinement,
+            pass3_refinement=refinement,
+            vlm_stages=vlm_stages,
+        )
         print(f"  {arm}: {len(events)} events, {len(slices)} slices")
         return {"arm": arm, "status": "completed", "stats": stats}
 
@@ -233,6 +245,125 @@ def _default_keep_review(review_slice, parse_error: str) -> Dict[str, Any]:
         "interval_reviews": [],
         "manual_review": True,
         "parse_error": parse_error,
+    }
+
+
+def _write_stage_point_results(
+    cfg: AppConfig,
+    episode_id: str,
+    episode_index: Optional[int],
+    arm: str,
+    events,
+    slice_results: List[Dict[str, Any]],
+    pass2_refinement: Dict[str, Any],
+    pass3_refinement: Dict[str, Any],
+    vlm_stages: List[str],
+) -> None:
+    out_dir = Path(cfg.paths.output_root) / episode_id / arm / "stage_points"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    common = {
+        "episode_id": episode_id,
+        "episode_index": episode_index,
+        "arm": arm,
+        "source": "episode_arm_stage_points",
+        "vlm_stages": vlm_stages,
+    }
+    if "pass1" in vlm_stages:
+        pass1_segments = []
+        for item in slice_results:
+            review = (((item.get("pass1") or {}).get("review") or {}).get("region") or {})
+            pass1_segments.append(
+                {
+                    "slice_id": item.get("slice_id"),
+                    "segments": review.get("segments", []),
+                    "coarse_segments": review.get("coarse_segments", []),
+                    "needs_review": ((item.get("pass1") or {}).get("review") or {}).get("needs_review", False),
+                }
+            )
+        write_json(
+            out_dir / "pass1_points.json",
+            {
+                **common,
+                "stage": "pass1",
+                "description": "Pass 1 only freezes trajectory segments; it does not remove, merge, relabel, or add keyframes.",
+                "num_points": len(events),
+                "points": [_event_point(event, "pass1_input") for event in events],
+                "slice_segments": pass1_segments,
+            },
+        )
+    if "pass2" in vlm_stages:
+        pass2_points = [_reviewed_point(item, "pass2") for item in pass2_refinement.get("final_events", [])]
+        write_json(
+            out_dir / "pass2_points.json",
+            {
+                **common,
+                "stage": "pass2",
+                "description": "Pass 2 applies VLM keep/remove/merge/relabel decisions to the traditional filtered keyframes.",
+                "num_points": len(pass2_points),
+                "num_kept_points": sum(1 for item in pass2_points if item.get("final_status") not in {"removed", "merged_removed"}),
+                "points": pass2_points,
+                "merge_groups": pass2_refinement.get("merge_groups", []),
+                "localization_requests": pass2_refinement.get("localization_requests", []),
+                "relocation_requests": pass2_refinement.get("relocation_requests", []),
+            },
+        )
+    if "pass3" in vlm_stages:
+        pass3_points = [_reviewed_point(item, "pass3") for item in pass3_refinement.get("final_events", [])]
+        write_json(
+            out_dir / "pass3_points.json",
+            {
+                **common,
+                "stage": "pass3",
+                "description": "Pass 3 starts from Pass 2 cleaned keyframes and adds missing keyframes for uncovered frozen segment boundaries.",
+                "num_points": len(pass3_points),
+                "num_kept_points": sum(1 for item in pass3_points if item.get("final_status") not in {"removed", "merged_removed"}),
+                "points": pass3_points,
+                "pass3": pass3_refinement.get("pass3", {}),
+                "merge_groups": pass3_refinement.get("merge_groups", []),
+                "localization_requests": pass3_refinement.get("localization_requests", []),
+                "relocation_requests": pass3_refinement.get("relocation_requests", []),
+            },
+        )
+
+
+def _event_point(event, stage: str) -> Dict[str, Any]:
+    return {
+        "stage": stage,
+        "keyframe_id": event.display_id,
+        "internal_event_id": event.event_id,
+        "source_index": event.source_index,
+        "type": event.event_type,
+        "original_type": event.original_type,
+        "kind": event.kind,
+        "time_sec": event.time,
+        "frame_index": event.frame_index,
+        "sample_index": event.sample_index,
+        "value_raw": event.value_raw,
+        "value_smooth": event.value_smooth,
+        "plateau_pair_id": event.plateau_pair_id,
+        "source_keyframe": event.source_keyframe,
+    }
+
+
+def _reviewed_point(item: Dict[str, Any], stage: str) -> Dict[str, Any]:
+    event_id = str(item.get("event_id") or item.get("keyframe_id") or "")
+    keyframe_id = str(item.get("keyframe_id") or (display_id_from_event_id(event_id) if event_id else ""))
+    return {
+        "stage": stage,
+        "keyframe_id": keyframe_id,
+        "internal_event_id": event_id,
+        "source_index": item.get("source_index"),
+        "type": item.get("type"),
+        "original_type": item.get("original_type"),
+        "time_sec": item.get("time_sec"),
+        "frame_index": item.get("frame_index"),
+        "value_smooth": item.get("value_smooth"),
+        "plateau_pair_id": item.get("plateau_pair_id"),
+        "vlm_action": item.get("vlm_action"),
+        "final_status": item.get("final_status"),
+        "merge_representative_event_id": item.get("merge_representative_event_id"),
+        "review": item.get("review", {}),
+        "source_keyframe": item.get("source_keyframe", {}),
     }
 
 

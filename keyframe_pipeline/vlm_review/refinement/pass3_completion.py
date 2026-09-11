@@ -125,7 +125,8 @@ def run_pass3_completion(
     out["pass3"] = summary
     write_json(pass3_root / "summary.json", summary)
     write_json(pass3_root / "final_events.json", {"episode_id": episode_id, "arm": arm, "final_events": out["final_events"], "pass3": summary})
-    _plot_pass3_abc(pass3_root / "abc_overview.png", episode_id, arm, original_events, refinement.get("final_events", []), out["final_events"], time, smooth)
+    if cfg.vlm_trajectory_review.save_visualization:
+        _plot_pass3_abc(pass3_root / "abc_overview.png", episode_id, arm, original_events, refinement.get("final_events", []), out["final_events"], time, smooth)
     return out
 
 
